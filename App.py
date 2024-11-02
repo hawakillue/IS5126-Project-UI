@@ -28,9 +28,11 @@ def run():
 
     st.sidebar.success("Select a function above.")
 
+    st.image("car.jpg")
+
     st.markdown(
         """
-        ### 
+        ### Carc Market Overview
         ### Car Price Evaluation
         Willing to sell your car but wonder about the price evaluation? 
         Provide the basic car information and get the estimated price in seconds with our app!
