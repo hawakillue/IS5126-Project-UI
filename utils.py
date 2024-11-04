@@ -1,21 +1,7 @@
-# Copyright 2018-2022 Streamlit Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import streamlit as st
 import inspect
 import textwrap
-
+import pandas as pd
 
 def show_code(demo):
     """Showing the code of the demo."""
@@ -25,3 +11,20 @@ def show_code(demo):
         st.markdown("## Code")
         sourcelines, _ = inspect.getsourcelines(demo)
         st.code(textwrap.dedent("".join(sourcelines[1:])))
+
+
+columns_needed = [
+    'Car Brand', 'Car Model', 'COE', 'Price', 'Dereg Value', 'Manufactured',
+    'No. of Owners', 'Mileage per year', 'Engine Capacity', 'Engine Type',
+    'Category_Multilabel'
+]
+
+file_path = 'filled_car_data.csv'
+
+filled_car_data = pd.read_csv(file_path, dtype={'Category_Multilabel': str})
+model_car_data = filled_car_data[columns_needed]
+model_car_data.dropna(inplace=True)
+
+car_brands = model_car_data['Car Brand'].unique().tolist()
+car_models = model_car_data['Car Model'].unique().tolist()
+engine_types = ['Diesel', 'Petrol', 'Electric']

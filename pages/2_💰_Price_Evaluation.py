@@ -1,119 +1,85 @@
-# Copyright 2018-2022 Streamlit Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import streamlit as st
-import inspect
-import textwrap
 import pandas as pd
-import pydeck as pdk
-from utils import show_code
-
-
-from urllib.error import URLError
-
-
-def mapping_demo():
-    @st.experimental_memo
-    def from_data_file(filename):
-        url = (
-            "http://raw.githubusercontent.com/streamlit/"
-            "example-data/master/hello/v1/%s" % filename
-        )
-        return pd.read_json(url)
-
-    try:
-        ALL_LAYERS = {
-            "Bike Rentals": pdk.Layer(
-                "HexagonLayer",
-                data=from_data_file("bike_rental_stats.json"),
-                get_position=["lon", "lat"],
-                radius=200,
-                elevation_scale=4,
-                elevation_range=[0, 1000],
-                extruded=True,
-            ),
-            "Bart Stop Exits": pdk.Layer(
-                "ScatterplotLayer",
-                data=from_data_file("bart_stop_stats.json"),
-                get_position=["lon", "lat"],
-                get_color=[200, 30, 0, 160],
-                get_radius="[exits]",
-                radius_scale=0.05,
-            ),
-            "Bart Stop Names": pdk.Layer(
-                "TextLayer",
-                data=from_data_file("bart_stop_stats.json"),
-                get_position=["lon", "lat"],
-                get_text="name",
-                get_color=[0, 0, 0, 200],
-                get_size=15,
-                get_alignment_baseline="'bottom'",
-            ),
-            "Outbound Flow": pdk.Layer(
-                "ArcLayer",
-                data=from_data_file("bart_path_stats.json"),
-                get_source_position=["lon", "lat"],
-                get_target_position=["lon2", "lat2"],
-                get_source_color=[200, 30, 0, 160],
-                get_target_color=[200, 30, 0, 160],
-                auto_highlight=True,
-                width_scale=0.0001,
-                get_width="outbound",
-                width_min_pixels=3,
-                width_max_pixels=30,
-            ),
-        }
-        st.sidebar.markdown("### Map Layers")
-        selected_layers = [
-            layer
-            for layer_name, layer in ALL_LAYERS.items()
-            if st.sidebar.checkbox(layer_name, True)
-        ]
-        if selected_layers:
-            st.pydeck_chart(
-                pdk.Deck(
-                    map_style="mapbox://styles/mapbox/light-v9",
-                    initial_view_state={
-                        "latitude": 37.76,
-                        "longitude": -122.4,
-                        "zoom": 11,
-                        "pitch": 50,
-                    },
-                    layers=selected_layers,
-                )
-            )
-        else:
-            st.error("Please choose at least one layer above.")
-    except URLError as e:
-        st.error(
-            """
-            **This demo requires internet access.**
-            Connection error: %s
-        """
-            % e.reason
-        )
+import joblib
+from sklearn.preprocessing import LabelEncoder
+from utils import car_brands, car_models, engine_types
+from datetime import datetime
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+import numpy as np
 
 
 st.set_page_config(page_title="Mapping Demo", page_icon="💰")
 st.markdown("# Mapping Demo")
 st.sidebar.header("Mapping Demo")
-st.write(
-    """This demo shows how to use
-[`st.pydeck_chart`](https://docs.streamlit.io/library/api-reference/charts/st.pydeck_chart)
-to display geospatial data."""
-)
+st.title("Car Price Prediction with Voting Ensemble Model")
+st.write("""
+This application allows you to predict the car price based on selected features. 
+Please provide the necessary input values below.
+""")
+st.header("Car Details")
 
-mapping_demo()
+voting_ensemble = joblib.load('voting_ensemble_model.pkl')
 
-show_code(mapping_demo)
+car_brand = st.selectbox("Car Brand", car_brands)
+car_model = st.selectbox("Car Model", car_models)
+coe_value = st.number_input("COE Value")
+dereg_value = st.number_input("Dereg Value")
+manufactured_year = st.number_input("Manufactured Year", min_value=2000, max_value=datetime.now().year)
+no_of_owners = st.number_input("No. of Owners", min_value=0, max_value=5)
+mileage_per_year = st.number_input("Mileage per year")
+engine_capacity = st.number_input("Engine Capacity", step=0.1)
+engine_type = st.selectbox("Engine Type", engine_types)
+
+
+def preprocess_input(input_data):
+    input_df = pd.DataFrame([input_data])
+
+    current_year = 2024
+    input_df['Manufactured'] = pd.to_numeric(input_df['Manufactured'], errors='coerce')
+    input_df['Dereg Value'] = input_df['Dereg Value'].replace(r'[^\d.]+', '', regex=True).astype(float)
+    input_df['No. of Owners'] = pd.to_numeric(input_df['No. of Owners'], errors='coerce')
+    input_df['Engine Capacity'] = input_df['Engine Capacity'].replace(r'[^\d.]', '', regex=True).astype(float)
+    
+    input_df['Car_Age'] = current_year - input_df['Manufactured']
+    input_df['Log_COE'] = np.log1p(input_df['COE'])
+    input_df['Log_Dereg_Value'] = np.log1p(input_df['Dereg Value'])
+    input_df['Log_Mileage_per_year'] = np.log1p(input_df['Mileage per year'])
+    input_df['Car_Age_COE'] = input_df['Car_Age'] * input_df['Log_COE']
+
+    categorical_columns = ['Car Brand', 'Car Model', 'Engine Type', 'Category_Multilabel']
+    le = LabelEncoder()
+    for col in categorical_columns:
+        input_df[col] = le.fit_transform(input_df[col].astype(str))
+
+    input_df.drop(columns=['Manufactured', 'COE', 'Dereg Value', 'Mileage per year'], inplace=True)
+    print(input_df)
+
+    scaler = StandardScaler()
+    # input_df_scaled = scaler.fit_transform(input_df)  
+    input_df_scaled = voting_ensemble.transform(input_df)
+    print(input_df_scaled)
+
+    return input_df_scaled
+
+user_input = {
+    'Car Brand': car_brand,   
+    'Car Model': car_model,
+    'COE': coe_value,
+    'Dereg Value': dereg_value,
+    'Manufactured': manufactured_year,
+    'No. of Owners': no_of_owners,
+    'Mileage per year': mileage_per_year,
+    'Engine Capacity': engine_capacity,
+    'Engine Type': engine_type,
+    'Category_Multilabel': '000000001001100'
+}
+
+
+
+submitted = st.button('Submit')
+
+if submitted:
+    processed_input = preprocess_input(user_input)
+    predicted_price = voting_ensemble.predict(processed_input)
+    # 显示预测结果
+    st.write(f"预测价格: {predicted_price[0]}")
