@@ -27,4 +27,4 @@ model_car_data.dropna(inplace=True)
 
 car_brands = model_car_data['Car Brand'].unique().tolist()
 car_models = model_car_data['Car Model'].unique().tolist()
-engine_types = ['Diesel', 'Petrol', 'Electric']
+engine_types = model_car_data['Engine Type'].unique().tolist()
