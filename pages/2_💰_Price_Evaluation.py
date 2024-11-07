@@ -2,11 +2,13 @@ import streamlit as st
 import pandas as pd
 import joblib
 from sklearn.preprocessing import LabelEncoder
-from utils import car_brands, car_models, engine_types
+from utils import car_brands, car_models, engine_types, categories,getCategory
+import time
 from datetime import datetime
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import numpy as np
 from joblib import load
+from sklearn.preprocessing import MultiLabelBinarizer
 
 
 st.set_page_config(page_title="Mapping Demo", page_icon="💰")
@@ -32,6 +34,9 @@ no_of_owners = st.number_input("No. of Owners", min_value=0, max_value=5)
 mileage_per_year = st.number_input("Mileage per year")
 engine_capacity = st.number_input("Engine Capacity", step=0.1)
 engine_type = st.selectbox("Engine Type", engine_types)
+
+selected_tags = st.multiselect("Categories", categories)
+# selected_tags_as_string_array = ','.join(selected_tags)
 
 
 def preprocess_input(input_data):
@@ -75,32 +80,22 @@ user_input = {
     'Mileage per year': mileage_per_year,
     'Engine Capacity': engine_capacity,
     'Engine Type': engine_type,
-    'Category_Multilabel': '000000001001100'
+    # 'Category_Multilabel': '000000001001100'
+    'Category_Multilabel': selected_tags
 }
 
 
 def predict_with_ensemble(test_data, label_encoders, scaler, voting_ensemble, current_year=2024):
-    """
-    准备数据，应用预处理并使用投票集成模型进行预测。
-
-    参数:
-    test_data: DataFrame, 包含需要预测的数据
-    label_encoders: dict, 包含LabelEncoder对象的字典
-    scaler: 已训练的StandardScaler对象
-    voting_ensemble: 已训练的Voting Ensemble模型
-    current_year: int, 当前年份用于计算车龄
-
-    返回:
-    prediction: 预测结果
-    """
     test_data = pd.DataFrame([test_data])
+    print('test_data')
+    print(test_data)
 
     necessary_columns = ['Manufactured', 'Dereg Value', 'No. of Owners', 'Engine Capacity']
     for col in necessary_columns:
         if col not in test_data.columns:
             raise ValueError(f"Missing necessary column in input data: {col}")
   
-    # 数据预处理
+
     test_data['Manufactured'] = pd.to_numeric(test_data['Manufactured'], errors='coerce')
     test_data['Dereg Value'] = test_data['Dereg Value'].replace(r'[^\d.]+', '', regex=True).astype(float)
     test_data['No. of Owners'] = pd.to_numeric(test_data['No. of Owners'], errors='coerce')
@@ -111,18 +106,23 @@ def predict_with_ensemble(test_data, label_encoders, scaler, voting_ensemble, cu
     test_data['Log_Mileage_per_year'] = np.log1p(test_data['Mileage per year'])
     test_data['Car_Age_COE'] = test_data['Car_Age'] * test_data['Log_COE']
 
-    # 应用标签编码
+    print('lalala')
+    print(test_data['Category_Multilabel'])
+    test_data['Category_Multilabel'] = getCategory(selected_tags, categories)
+    print('now category multilabel is: ')
+    print(test_data['Category_Multilabel'])
+    
     for col in label_encoders:
         test_data[col] = label_encoders[col].transform(test_data[col].astype(str))
 
-    # 确保仅包含模型训练时使用的特征
+    
     features = [col for col in test_data.columns if col in label_encoders or col in ['Car_Age', 'Log_COE', 'Log_Dereg_Value', 'Log_Mileage_per_year', 'Car_Age_COE', 'Engine Capacity', 'No. of Owners']]
     test_data = test_data[features]
 
-    # 标准化特征
+    
     test_data_scaled = scaler.transform(test_data)
 
-    # 使用模型进行预测
+    # predict with ensemble model
     prediction = voting_ensemble.predict(test_data_scaled)
     return prediction
 
@@ -131,8 +131,8 @@ def predict_with_ensemble(test_data, label_encoders, scaler, voting_ensemble, cu
 submitted = st.button('Submit')
 
 if submitted:
-    # processed_input = preprocess_input(user_input)
-    # predicted_price = voting_ensemble.predict(processed_input)
-    predicted_price = predict_with_ensemble(user_input, label_encoders, scaler, voting_ensemble)
-    # 显示预测结果
-    st.write(f"预测价格: {predicted_price[0]}")
+    with st.spinner("Calculating..."):
+        time.sleep(1)
+        predicted_price = predict_with_ensemble(user_input, label_encoders, scaler, voting_ensemble)
+        st.balloons()  
+        st.markdown(f"<h2 style='color:blue;'>Estimated Price: ${predicted_price[0]}</h2>", unsafe_allow_html=True)
