@@ -25,24 +25,39 @@ import seaborn as sns
 
 
 def plotting_demo():
+    # Load CSV data
+    coe_df = pd.read_csv('./COE.csv')
+
+    # Convert 'month' to datetime for proper time series handling
+    coe_df['month'] = pd.to_datetime(coe_df['month'])
+
+    # Group by month and vehicle_class, taking the mean of 'premium' to handle duplicates
+    coe_df = coe_df.groupby(['month', 'vehicle_class']).agg({'premium': 'mean'}).reset_index()
+
+    # Pivot the DataFrame to have each vehicle_class as a separate column
+    pivot_df = coe_df.pivot(index='month', columns='vehicle_class', values='premium')
+
+    # Initialize progress bar and status text
     progress_bar = st.sidebar.progress(0)
     status_text = st.sidebar.empty()
-    last_rows = np.random.randn(1, 1)
-    chart = st.line_chart(last_rows)
 
-    for i in range(1, 101):
-        new_rows = last_rows[-1, :] + np.random.randn(5, 1).cumsum(axis=0)
-        status_text.text("%i%% Complete" % i)
-        chart.add_rows(new_rows)
-        progress_bar.progress(i)
-        last_rows = new_rows
-        time.sleep(0.05)
+    # Initialize the chart with an empty DataFrame
+    st.subheader("Trend of COE for Each Vehicle Class")
+    chart = st.line_chart(pivot_df.iloc[:1])  # Start with the first row for correct columns setup
 
+    # Iteratively add each row to the chart
+    for i in range(1, len(pivot_df)):
+        # Add the next row to the chart
+        chart.add_rows(pivot_df.iloc[[i]])
+
+        # Update the progress bar and status
+        progress = int((i / (len(pivot_df) - 1)) * 100)
+        status_text.text(f"{progress}% Complete")
+        progress_bar.progress(progress)
+
+
+    # Clear the progress bar after completion
     progress_bar.empty()
-
-    # Streamlit widgets automatically run the script from top to bottom. Since
-    # this button is not connected to any other logic, it just causes a plain
-    # rerun.
     st.button("Re-run")
 
 
